@@ -175,6 +175,34 @@ func (d *MenderShellDaemon) messageMainLoop(ws *websocket.Conn, token string) (e
 	return err
 }
 
+func waitForJWTToken(client mender.AuthClient) (jwtToken string, err error) {
+	_, err = client.FetchJWTToken()
+	if err != nil {
+		log.Errorf("error checking JWT token availability via FetchJWTToken: %s", err.Error())
+		return "", err
+	}
+
+	jwtToken, err = client.GetJWTToken()
+	if jwtToken == "" {
+		log.Infof("waiting for the JWT token to be available (indefinitely)")
+		for {
+			time.Sleep(time.Second)
+			jwtToken, err = client.GetJWTToken()
+			if err != nil {
+				log.Errorf("error checking JWT token availability via FetchJWTToken: %s", err.Error())
+				return "", err
+			}
+			if jwtToken != "" {
+				log.Infof("JWT token is available.")
+				break
+			}
+		}
+	} else {
+		log.Infof("JWT token is available.")
+	}
+	return jwtToken, nil
+}
+
 //starts all needed elements of the mender-shell daemon
 // * executes given shell (shell.ExecuteShell)
 // * get dbus API and starts the dbus main loop (dbus.GetDBusAPI(), go dbusAPI.MainLoopRun(loop))
@@ -227,12 +255,11 @@ func (d *MenderShellDaemon) Run() error {
 		return err
 	}
 
-	//get the JWT token from the client over dbus API
-	jwtToken, err := client.GetJWTToken()
+	jwtToken, err := waitForJWTToken(client)
 	if err != nil {
-		log.Errorf("mender-shall dbus failed to get JWT token, error: %s", err.Error())
 		return err
 	}
+
 	log.Debugf("mender-shell got len(JWT)=%d", len(jwtToken))
 
 	// skip verification of HTTPS certificate if skipVerify is set in the config file

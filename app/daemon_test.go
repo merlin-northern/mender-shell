@@ -554,12 +554,12 @@ func TestTimeToSweepSessions(t *testing.T) {
 	assert.False(t, d.timeToSweepSessions())
 
 	//on the other hand when both are set it maybe time to sweep
-	d.expireSessionsAfter = 32*time.Second
-	d.expireSessionsAfterIdle = 8*time.Second
+	d.expireSessionsAfter = 32 * time.Second
+	d.expireSessionsAfterIdle = 8 * time.Second
 	lastExpiredSessionSweep = time.Now()
 	assert.False(t, d.timeToSweepSessions())
 
-	expiredSessionsSweepFrequency=2*time.Second
-	time.Sleep(2*expiredSessionsSweepFrequency)
+	expiredSessionsSweepFrequency = 2 * time.Second
+	time.Sleep(2 * expiredSessionsSweepFrequency)
 	assert.True(t, d.timeToSweepSessions())
 }
