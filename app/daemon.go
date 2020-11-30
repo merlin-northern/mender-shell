@@ -148,6 +148,7 @@ func (d *MenderShellDaemon) outputStatus() {
 }
 
 func (d *MenderShellDaemon) messageMainLoop(ws *websocket.Conn, token string) (err error) {
+	log.Info("messageMainLoop: starting")
 	for {
 		if d.shouldStop() {
 			log.Info("messageMainLoop: returning")
@@ -170,9 +171,8 @@ func (d *MenderShellDaemon) messageMainLoop(ws *websocket.Conn, token string) (e
 					log.Errorf("main-loop: error on closing the connection: %s", err.Error())
 				}
 			}
-			ws, err = d.wsReconnect(token)
 			if err != nil {
-				log.Errorf("main-loop: error on reconnect: %s", err.Error())
+				log.Errorf("main-loop: break: %s", err.Error())
 				break
 			}
 			continue
@@ -185,6 +185,7 @@ func (d *MenderShellDaemon) messageMainLoop(ws *websocket.Conn, token string) (e
 		}
 	}
 
+	log.Info("messageMainLoop: returning")
 	return err
 }
 
@@ -312,7 +313,13 @@ func (d *MenderShellDaemon) Run() error {
 				//now we just stop
 				break
 			}
-			d.wsReconnect(jwtToken)
+
+			//in here technically it is possible we close a closed connection
+			//but it is not a critical error, the important thing is not to leave
+			//any messageMainLoop running -- since it waits forever on readMessage
+			ws.Close()
+			ws, _ = d.wsReconnect(jwtToken)
+			go d.messageMainLoop(ws, jwtToken)
 		}
 
 		if d.timeToSweepSessions() {
