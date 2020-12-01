@@ -14,17 +14,16 @@
 package app
 
 import (
-	"crypto/tls"
 	"errors"
 	"os/user"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/mendersoftware/mender-shell/client/dbus"
 	"github.com/mendersoftware/mender-shell/client/mender"
 	configuration "github.com/mendersoftware/mender-shell/config"
+	"github.com/mendersoftware/mender-shell/connection"
 	"github.com/mendersoftware/mender-shell/deviceconnect"
 	"github.com/mendersoftware/mender-shell/procps"
 	"github.com/mendersoftware/mender-shell/session"
@@ -115,9 +114,9 @@ func (d *MenderShellDaemon) timeToSweepSessions() bool {
 	}
 }
 
-func (d *MenderShellDaemon) wsReconnect(token string) (ws *websocket.Conn, err error) {
+func (d *MenderShellDaemon) wsReconnect(token string) (ws *connection.Connection, err error) {
 	for reconnectAttempts := configuration.MaxReconnectAttempts; reconnectAttempts > 0; reconnectAttempts-- {
-		ws, err = deviceconnect.Connect(d.serverUrl, d.deviceConnectUrl, token)
+		ws, err = deviceconnect.Connect(d.serverUrl, d.deviceConnectUrl, d.skipVerify, token)
 		if err != nil {
 			if reconnectAttempts == 1 {
 				log.Errorf("main-loop ws failed to re-connect to %s%s, error: %s; giving up after %d tries", d.serverUrl, d.deviceConnectUrl, err.Error(), configuration.MaxReconnectAttempts)
@@ -148,7 +147,7 @@ func (d *MenderShellDaemon) outputStatus() {
 	d.printStatus = false
 }
 
-func (d *MenderShellDaemon) messageMainLoop(ws *websocket.Conn, token string) (err error) {
+func (d *MenderShellDaemon) messageMainLoop(ws *connection.Connection, token string) (err error) {
 	log.Info("messageMainLoop: starting")
 	for {
 		if d.shouldStop() {
@@ -272,16 +271,9 @@ func (d *MenderShellDaemon) Run() error {
 	jwtToken, err := waitForJWTToken(client)
 	log.Debugf("mender-shell got len(JWT)=%d", len(jwtToken))
 
-	// skip verification of HTTPS certificate if skipVerify is set in the config file
-	if d.skipVerify {
-		websocket.DefaultDialer.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	}
-
 	//make websocket connection to the backend, this will be used to exchange messages
 	log.Infof("mender-shell connecting websocket; url: %s%s", d.serverUrl, d.deviceConnectUrl)
-	ws, err := deviceconnect.Connect(d.serverUrl, d.deviceConnectUrl, jwtToken)
+	ws, err := deviceconnect.Connect(d.serverUrl, d.deviceConnectUrl, d.skipVerify, jwtToken)
 	if err != nil {
 		log.Errorf("mender-shall ws failed to connect to %s%s, error: %s", d.serverUrl, d.deviceConnectUrl, err.Error())
 		return err
@@ -337,20 +329,16 @@ func (d *MenderShellDaemon) Run() error {
 	return nil
 }
 
-func (d *MenderShellDaemon) responseMessage(ws *websocket.Conn, m *shell.MenderShellMessage) (err error) {
+func (d *MenderShellDaemon) responseMessage(ws *connection.Connection, m *shell.MenderShellMessage) (err error) {
 	data, err := msgpack.Marshal(m)
 	if err != nil {
 		return err
 	}
-	d.writeMutex.Lock()
-	err = ws.SetWriteDeadline(time.Now().Add(configuration.MessageWriteTimeout))
-	err = ws.WriteMessage(websocket.BinaryMessage, data)
-	d.writeMutex.Unlock()
-
+	err=ws.WriteMessageRaw(data)
 	return err
 }
 
-func (d *MenderShellDaemon) routeMessage(ws *websocket.Conn, message *shell.MenderShellMessage) (err error) {
+func (d *MenderShellDaemon) routeMessage(ws *connection.Connection, message *shell.MenderShellMessage) (err error) {
 	switch message.Type {
 	case shell.MessageTypeSpawnShell:
 		if d.shellsSpawned >= configuration.MaxShellsSpawned {
@@ -435,13 +423,13 @@ func (d *MenderShellDaemon) routeMessage(ws *websocket.Conn, message *shell.Mend
 				log.Errorf("failed to stop shell: %s", err.Error())
 			}
 			if procps.ProcessExists(s.GetShellPid()) {
-				log.Errorf("could not terminate shell (pid %d) for session %s, user" +
+				log.Errorf("could not terminate shell (pid %d) for session %s, user"+
 					"will not be able to start another one if the limit is reached.",
 					s.GetShellPid(),
 					s.GetId())
 				return errors.New("could not terminate shell: " + err.Error() + ".")
 			} else {
-				log.Infof("shell exit rc: %s",err.Error())
+				log.Infof("shell exit rc: %s", err.Error())
 				if d.shellsSpawned == 0 {
 					log.Error("can't decrement shellsSpawned count: it is 0.")
 				} else {
@@ -472,12 +460,12 @@ func (d *MenderShellDaemon) routeMessage(ws *websocket.Conn, message *shell.Mend
 	return nil
 }
 
-func (d *MenderShellDaemon) readMessage(ws *websocket.Conn) (*shell.MenderShellMessage, error) {
+func (d *MenderShellDaemon) readMessage(ws *connection.Connection) (*shell.MenderShellMessage, error) {
 	if ws == nil {
 		return nil, ErrNilParameterUnexpected
 	}
 
-	_, data, err := ws.ReadMessage()
+	data, err := ws.ReadMessageRaw()
 	if err != nil {
 		return nil, err
 	}

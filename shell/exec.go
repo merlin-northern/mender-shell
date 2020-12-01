@@ -20,9 +20,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"github.com/vmihailenco/msgpack"
+
+	"github.com/mendersoftware/mender-shell/connection"
 )
 
 var (
@@ -60,7 +61,7 @@ type MenderShellMessage struct {
 type MenderShell struct {
 	writeMutex *sync.Mutex
 	sessionId  string
-	ws         *websocket.Conn
+	ws         *connection.Connection
 	r          io.Reader
 	w          io.Writer
 	running    bool
@@ -74,7 +75,7 @@ type MenderShellCommand struct {
 //are already connected to the i/o of the shell process and ws websocket
 //is connected and ws.SetReadDeadline(time.Now().Add(defaultPingWait))
 //was already called and ping-pong was established
-func NewMenderShell(sessionId string, writeMutex *sync.Mutex, ws *websocket.Conn, r io.Reader, w io.Writer) *MenderShell {
+func NewMenderShell(sessionId string, writeMutex *sync.Mutex, ws *connection.Connection, r io.Reader, w io.Writer) *MenderShell {
 	shell := MenderShell{
 		writeMutex: writeMutex,
 		sessionId:  sessionId,
@@ -103,7 +104,7 @@ func (s *MenderShell) IsRunning() bool {
 	return s.running
 }
 
-func (s *MenderShell) UpdateWSConnection(ws *websocket.Conn) error {
+func (s *MenderShell) UpdateWSConnection(ws *connection.Connection) error {
 	s.ws = ws
 	return nil
 }
@@ -134,9 +135,6 @@ func (s *MenderShell) pipeStdout() {
 			log.Errorf("error parsing message: %s", err)
 			continue
 		}
-		s.writeMutex.Lock()
-		s.ws.SetWriteDeadline(time.Now().Add(writeWait))
-		s.ws.WriteMessage(websocket.BinaryMessage, data)
-		s.writeMutex.Unlock()
+		s.ws.WriteMessageRaw(data)
 	}
 }
