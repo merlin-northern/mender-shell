@@ -83,6 +83,10 @@ func NewConnection(u url.URL,
 	return c, nil
 }
 
+func (c Connection) GetWriteTimeout() time.Duration {
+	return c.writeWait
+}
+
 func (c *Connection) WriteMessage(m *ws.ProtoMsg) (err error) {
 	data, err := msgpack.Marshal(m)
 	if err != nil {

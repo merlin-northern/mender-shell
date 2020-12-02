@@ -20,25 +20,15 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-	"github.com/vmihailenco/msgpack"
-
 	"github.com/mendersoftware/mender-shell/connection"
+	log "github.com/sirupsen/logrus"
+
+	ws2 "github.com/mendersoftware/go-lib-micro/ws"
+	wsshell "github.com/mendersoftware/go-lib-micro/ws/shell"
 )
 
 var (
 	ErrExecWriteBytesShort  = errors.New("failed to write the whole message")
-	MessageTypeShellCommand = "shell"
-	MessageTypeSpawnShell   = "new"
-	MessageTypeStopShell    = "stop"
-	writeWait               = 2 * time.Second
-)
-
-type MenderShellMessageStatus int
-
-const (
-	NormalMessage MenderShellMessageStatus = iota
-	ErrorMessage
 )
 
 // MenderShellMessage represents a message between the device and the backend
@@ -49,7 +39,7 @@ type MenderShellMessage struct {
 	//message.
 	SessionId string `json:"session_id" msgpack:"session_id"`
 	//message status, currently normal and error message types are supported
-	Status MenderShellMessageStatus `json:"status_code" msgpack:"status_code"`
+	Status wsshell.MenderShellMessageStatus `json:"status_code" msgpack:"status_code"`
 	//the message payload, if
 	// * .Type===MessageTypeShellCommand interpreted as keystrokes and passed
 	//   to the stdin of the terminal running the shell.
@@ -87,8 +77,8 @@ func NewMenderShell(sessionId string, writeMutex *sync.Mutex, ws *connection.Con
 	return &shell
 }
 
-func MenderShellExecGetWriteTimeout() time.Duration {
-	return writeWait
+func (s *MenderShell) GetWriteTimeout() time.Duration {
+	return s.ws.GetWriteTimeout()
 }
 
 func (s *MenderShell) Start() {
@@ -125,16 +115,29 @@ func (s *MenderShell) pipeStdout() {
 			log.Errorf("error reading stdout: '%s'; restart is needed.", err)
 			break
 		}
-		m := &MenderShellMessage{
-			Type:      MessageTypeShellCommand,
-			Data:      raw[:n],
-			SessionId: s.sessionId,
+		//m := &MenderShellMessage{
+		//	Type:      MessageTypeShellCommand,
+		//	Data:      raw[:n],
+		//	SessionId: s.sessionId,
+		//}
+		//data, err := msgpack.Marshal(m)
+		//if err != nil {
+		//	log.Errorf("error parsing message: %s", err)
+		//	continue
+		//}
+		//s.ws.WriteMessageRaw(data)
+
+		msg := &ws2.ProtoMsg{
+			Header: ws2.ProtoHdr{
+				Proto:     ws2.ProtoTypeShell,
+				MsgType:   wsshell.MessageTypeShellCommand,
+				SessionID: s.sessionId,
+				Properties: map[string]interface{}{
+					"status": wsshell.NormalMessage,
+				},
+			},
+			Body: raw[:n],
 		}
-		data, err := msgpack.Marshal(m)
-		if err != nil {
-			log.Errorf("error parsing message: %s", err)
-			continue
-		}
-		s.ws.WriteMessageRaw(data)
+		err = s.ws.WriteMessage(msg)
 	}
 }

@@ -136,10 +136,6 @@ func TestNewMenderShellReadStdIn(t *testing.T) {
 	assert.Contains(t, messages, message)
 }
 
-func TestMenderShellExecGetWriteTimeout(t *testing.T) {
-	assert.Equal(t, writeWait, MenderShellExecGetWriteTimeout())
-}
-
 func TestPipeStdout(t *testing.T) {
 	reader, err := os.Open("/dev/null")
 	if err != nil {

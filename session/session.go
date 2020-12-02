@@ -390,7 +390,7 @@ func (s *MenderShellSession) StopShell() (err error) {
 	p.Signal(syscall.SIGINT)
 	time.Sleep(2 * time.Second)
 	s.shell.Stop()
-	time.Sleep(2 * shell.MenderShellExecGetWriteTimeout())
+	time.Sleep(2 * s.shell.GetWriteTimeout())
 	s.pseudoTTY.Close()
 
 	err = procps.TerminateAndWait(s.shellPid, s.command, 2*time.Second)

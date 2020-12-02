@@ -20,6 +20,9 @@ import (
 	"sync"
 	"time"
 
+	ws2 "github.com/mendersoftware/go-lib-micro/ws"
+	wsshell "github.com/mendersoftware/go-lib-micro/ws/shell"
+
 	"github.com/mendersoftware/mender-shell/client/dbus"
 	"github.com/mendersoftware/mender-shell/client/mender"
 	configuration "github.com/mendersoftware/mender-shell/config"
@@ -29,7 +32,6 @@ import (
 	"github.com/mendersoftware/mender-shell/session"
 	"github.com/mendersoftware/mender-shell/shell"
 	log "github.com/sirupsen/logrus"
-	"github.com/vmihailenco/msgpack"
 )
 
 var lastExpiredSessionSweep = time.Now()
@@ -330,17 +332,31 @@ func (d *MenderShellDaemon) Run() error {
 }
 
 func (d *MenderShellDaemon) responseMessage(ws *connection.Connection, m *shell.MenderShellMessage) (err error) {
-	data, err := msgpack.Marshal(m)
-	if err != nil {
-		return err
+	msg := &ws2.ProtoMsg{
+		Header: ws2.ProtoHdr{
+			Proto:     ws2.ProtoTypeShell,
+			MsgType:   m.Type,
+			SessionID: m.SessionId,
+			Properties: map[string]interface{}{
+				"status": m.Status,
+			},
+		},
+		Body: nil,
 	}
-	err=ws.WriteMessageRaw(data)
+	err = ws.WriteMessage(msg)
 	return err
+
+	//data, err := msgpack.Marshal(m)
+	//if err != nil {
+	//	return err
+	//}
+	//err=ws.WriteMessageRaw(data)
+	//return err
 }
 
 func (d *MenderShellDaemon) routeMessage(ws *connection.Connection, message *shell.MenderShellMessage) (err error) {
 	switch message.Type {
-	case shell.MessageTypeSpawnShell:
+	case wsshell.MessageTypeSpawnShell:
 		if d.shellsSpawned >= configuration.MaxShellsSpawned {
 			return session.ErrSessionTooManyShellsAlreadyRunning
 		}
@@ -365,24 +381,24 @@ func (d *MenderShellDaemon) routeMessage(ws *connection.Connection, message *she
 		})
 
 		message := "Shell started"
-		status := shell.NormalMessage
+		status := wsshell.NormalMessage
 		if err != nil {
 			log.Errorf("failed to start shell: %s", err.Error())
 			message = "failed to start shell: " + err.Error()
-			status = shell.ErrorMessage
+			status = wsshell.ErrorMessage
 		} else {
 			log.Debugf("started shell")
 			d.shellsSpawned++
 		}
 
 		err = d.responseMessage(ws, &shell.MenderShellMessage{
-			Type:      shell.MessageTypeSpawnShell,
+			Type:      wsshell.MessageTypeSpawnShell,
 			Status:    status,
 			SessionId: s.GetId(),
 			Data:      []byte(message),
 		})
 		return err
-	case shell.MessageTypeStopShell:
+	case wsshell.MessageTypeStopShell:
 		if len(message.SessionId) < 1 {
 			userId := string(message.Data)
 			if len(userId) < 1 {
@@ -412,8 +428,8 @@ func (d *MenderShellDaemon) routeMessage(ws *connection.Connection, message *she
 		err = s.StopShell()
 		if err != nil {
 			rErr := d.responseMessage(ws, &shell.MenderShellMessage{
-				Type:      shell.MessageTypeSpawnShell,
-				Status:    shell.ErrorMessage,
+				Type:      wsshell.MessageTypeSpawnShell,
+				Status:    wsshell.ErrorMessage,
 				SessionId: s.GetId(),
 				Data:      []byte("failed to stop shell: " + err.Error()),
 			})
@@ -444,7 +460,7 @@ func (d *MenderShellDaemon) routeMessage(ws *connection.Connection, message *she
 			}
 		}
 		return session.MenderShellDeleteById(s.GetId())
-	case shell.MessageTypeShellCommand:
+	case wsshell.MessageTypeShellCommand:
 		s := session.MenderShellSessionGetById(message.SessionId)
 		if s == nil {
 			log.Debugf("routeMessage: session not found for id %s", message.SessionId)
@@ -465,15 +481,22 @@ func (d *MenderShellDaemon) readMessage(ws *connection.Connection) (*shell.Mende
 		return nil, ErrNilParameterUnexpected
 	}
 
-	data, err := ws.ReadMessageRaw()
+	msg,err := ws.ReadMessage()
 	if err != nil {
 		return nil, err
 	}
 
-	m := &shell.MenderShellMessage{}
-	err = msgpack.Unmarshal(data, m)
-	if err != nil {
-		return nil, err
+	status:=wsshell.NormalMessage
+	if v,ok:=msg.Header.Properties["status"];ok {
+		status=wsshell.MenderShellMessageStatus(v.(int))
 	}
+
+	m := &shell.MenderShellMessage{
+		Type:      msg.Header.MsgType,
+		SessionId: msg.Header.SessionID,
+		Status:    status,
+		Data:      msg.Body,
+	}
+
 	return m, nil
 }
