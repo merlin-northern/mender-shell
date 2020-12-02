@@ -341,8 +341,9 @@ func (d *MenderShellDaemon) responseMessage(ws *connection.Connection, m *shell.
 				"status": m.Status,
 			},
 		},
-		Body: nil,
+		Body: m.Data,
 	}
+	log.Debugf("responseMessage: ws.WriteMessage(%+v)",msg)
 	err = ws.WriteMessage(msg)
 	return err
 
