@@ -482,6 +482,7 @@ func (d *MenderShellDaemon) readMessage(ws *connection.Connection) (*shell.Mende
 	}
 
 	msg,err := ws.ReadMessage()
+	log.Debugf("ws.ReadMessage()=%+v,%v",msg,err)
 	if err != nil {
 		return nil, err
 	}
