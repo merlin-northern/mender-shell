@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	ErrExecWriteBytesShort  = errors.New("failed to write the whole message")
+	ErrExecWriteBytesShort = errors.New("failed to write the whole message")
 )
 
 // MenderShellMessage represents a message between the device and the backend

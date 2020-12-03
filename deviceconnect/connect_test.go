@@ -78,28 +78,28 @@ func TestMenderShellDeviceConnect(t *testing.T) {
 	// Convert http://127.0.0.1 to ws://127.0.0.
 	u := "ws" + strings.TrimPrefix(server.URL, "http")
 
-	wsValid, err := Connect(u, "/", "token")
+	wsValid, err := Connect(u, "/", false, "", "token")
 	assert.Nil(t, err)
 	assert.NotNil(t, wsValid)
 	defer wsValid.Close()
 
-	ws0, err := Connect("%2Casdads://:/sadfa//a", " same here", "token")
+	ws0, err := Connect("%2Casdads://:/sadfa//a", " same here", false, "", "token")
 	assert.Error(t, err)
 	assert.Nil(t, ws0)
 
 	t.Log("waiting for connection timeout")
-	ws1, err := Connect("wss://127.1.1.1:443", "/this", "token")
+	ws1, err := Connect("wss://127.1.1.1:443", "/this", false, "", "token")
 	assert.Error(t, err)
 	assert.Nil(t, ws1)
 
 	t.Log("reading a message")
-	_, b, err := wsValid.ReadMessage()
+	m, err := wsValid.ReadMessage()
 	assert.NoError(t, err)
-	assert.True(t, len(b) > 1)
-	assert.Equal(t, "echo", string(b))
+	assert.True(t, len(m.Body) > 1)
+	assert.Equal(t, "echo", string(m.Body))
 
 	t.Log("waiting for timeout")
 	time.Sleep(20 * time.Second)
-	_, _, err = wsValid.ReadMessage()
+	_, err = wsValid.ReadMessage()
 	assert.Error(t, err)
 }

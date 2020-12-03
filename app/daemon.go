@@ -48,6 +48,7 @@ type MenderShellDaemon struct {
 	username                string
 	shell                   string
 	serverUrl               string
+	serverCertificate       string
 	skipVerify              bool
 	deviceConnectUrl        string
 	expireSessionsAfter     time.Duration
@@ -68,6 +69,7 @@ func NewDaemon(config *configuration.MenderShellConfig) *MenderShellDaemon {
 		username:                config.User,
 		shell:                   config.ShellCommand,
 		serverUrl:               config.ServerURL,
+		serverCertificate:       config.ServerCertificate,
 		skipVerify:              config.SkipVerify,
 		expireSessionsAfter:     time.Second * time.Duration(config.Sessions.ExpireAfter),
 		expireSessionsAfterIdle: time.Second * time.Duration(config.Sessions.ExpireAfterIdle),
@@ -118,7 +120,7 @@ func (d *MenderShellDaemon) timeToSweepSessions() bool {
 
 func (d *MenderShellDaemon) wsReconnect(token string) (ws *connection.Connection, err error) {
 	for reconnectAttempts := configuration.MaxReconnectAttempts; reconnectAttempts > 0; reconnectAttempts-- {
-		ws, err = deviceconnect.Connect(d.serverUrl, d.deviceConnectUrl, d.skipVerify, token)
+		ws, err = deviceconnect.Connect(d.serverUrl, d.deviceConnectUrl, d.skipVerify, d.serverCertificate, token)
 		if err != nil {
 			if reconnectAttempts == 1 {
 				log.Errorf("main-loop ws failed to re-connect to %s%s, error: %s; giving up after %d tries", d.serverUrl, d.deviceConnectUrl, err.Error(), configuration.MaxReconnectAttempts)
@@ -275,7 +277,7 @@ func (d *MenderShellDaemon) Run() error {
 
 	//make websocket connection to the backend, this will be used to exchange messages
 	log.Infof("mender-shell connecting websocket; url: %s%s", d.serverUrl, d.deviceConnectUrl)
-	ws, err := deviceconnect.Connect(d.serverUrl, d.deviceConnectUrl, d.skipVerify, jwtToken)
+	ws, err := deviceconnect.Connect(d.serverUrl, d.deviceConnectUrl, d.skipVerify, d.serverCertificate, jwtToken)
 	if err != nil {
 		log.Errorf("mender-shall ws failed to connect to %s%s, error: %s", d.serverUrl, d.deviceConnectUrl, err.Error())
 		return err
@@ -343,7 +345,7 @@ func (d *MenderShellDaemon) responseMessage(ws *connection.Connection, m *shell.
 		},
 		Body: m.Data,
 	}
-	log.Debugf("responseMessage: ws.WriteMessage(%+v)",msg)
+	log.Debugf("responseMessage: ws.WriteMessage(%+v)", msg)
 	err = ws.WriteMessage(msg)
 	return err
 
@@ -482,15 +484,15 @@ func (d *MenderShellDaemon) readMessage(ws *connection.Connection) (*shell.Mende
 		return nil, ErrNilParameterUnexpected
 	}
 
-	msg,err := ws.ReadMessage()
-	log.Debugf("ws.ReadMessage()=%+v,%v",msg,err)
+	msg, err := ws.ReadMessage()
+	log.Debugf("ws.ReadMessage()=%+v,%v", msg, err)
 	if err != nil {
 		return nil, err
 	}
 
-	status:=wsshell.NormalMessage
-	if v,ok:=msg.Header.Properties["status"];ok {
-		status=wsshell.MenderShellMessageStatus(v.(int))
+	status := wsshell.NormalMessage
+	if v, ok := msg.Header.Properties["status"]; ok {
+		status = wsshell.MenderShellMessageStatus(v.(int))
 	}
 
 	m := &shell.MenderShellMessage{
