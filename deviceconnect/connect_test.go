@@ -15,6 +15,7 @@
 package deviceconnect
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -102,4 +103,65 @@ func TestMenderShellDeviceConnect(t *testing.T) {
 	time.Sleep(20 * time.Second)
 	_, err = wsValid.ReadMessage()
 	assert.Error(t, err)
+}
+
+func TestMenderShellDeviceConnectTLSCerts(t *testing.T) {
+	testCases := map[string]struct {
+		certificate string
+		skipVerify  bool
+		noUpgrade bool
+		err         error
+	}{
+		"ok-with-given-certificate": {
+			certificate: "server.crt",
+		},
+		"ok-without-verify": {
+			certificate: "",
+			skipVerify:  true,
+		},
+		"error-without-certificate": {
+			certificate: "",
+			err:         errors.New("x509: certificate signed by unknown authority"),
+		},
+		"error-bad-handshake": {
+			certificate: "server.crt",
+			noUpgrade: true,
+			err: errors.New("websocket: bad handshake"),
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !tc.noUpgrade {
+				var upgrade = websocket.Upgrader{}
+				c, err := upgrade.Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				defer c.Close()
+
+				for {
+					c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+					c.WriteMessage(websocket.BinaryMessage, []byte("echo"))
+
+					time.Sleep(4 * time.Second)
+				}}
+			}))
+			defer server.Close()
+
+			// Convert http://127.0.0.1 to wss://127.0.0.
+			u := "wss" + strings.TrimPrefix(server.URL, "https")
+			wsValid, err := Connect(u, "/", tc.skipVerify, tc.certificate, "token")
+			if tc.err != nil {
+				assert.Error(t, err)
+				assert.EqualError(t, err, tc.err.Error())
+				assert.Nil(t, wsValid)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, wsValid)
+				defer wsValid.Close()
+			}
+		})
+	}
 }

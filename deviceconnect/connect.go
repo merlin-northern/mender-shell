@@ -44,7 +44,7 @@ func Connect(serverUrl string, connectUrl string, skipVerify bool, serverCertifi
 	scheme := getWebSocketScheme(parsedUrl.Scheme)
 	u := url.URL{Scheme: scheme, Host: parsedUrl.Host, Path: connectUrl}
 	ws, err = connection.NewConnection(u, token, writeWait, maxMessageSize, defaultPingWait, skipVerify, serverCertificate)
-	return ws, nil
+	return ws, err
 }
 
 func getWebSocketScheme(scheme string) string {
