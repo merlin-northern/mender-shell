@@ -60,6 +60,7 @@ func loadServerTrust(serverCertFilePath string) *x509.CertPool {
 		return nil
 	}
 
+	log.Infof("loadServerTrust loading certificate from %s", serverCertFilePath)
 	systemPool, err := x509.SystemCertPool()
 	if err != nil {
 		log.Warnf("Error when loading system certificates: %s", err.Error())
