@@ -55,27 +55,27 @@ type Connection struct {
 }
 
 func loadServerTrust(serverCertFilePath string) *x509.CertPool {
-	if serverCertFilePath == "" {
-		log.Warnf(errMissingServerCertF, "no file provided")
-		return nil
-	}
-
-	log.Infof("loadServerTrust loading certificate from %s", serverCertFilePath)
 	systemPool, err := x509.SystemCertPool()
 	if err != nil {
 		log.Warnf("Error when loading system certificates: %s", err.Error())
 	}
 
+	if systemPool == nil {
+		log.Warn("No system certificates found.")
+		systemPool = x509.NewCertPool()
+	}
+
+	if len(serverCertFilePath) < 1 {
+		log.Warnf(errMissingServerCertF, "no file provided")
+		return systemPool
+	}
+
+	log.Infof("loadServerTrust loading certificate from %s", serverCertFilePath)
 	// Read certificate file.
 	serverCertificate, err := ioutil.ReadFile(serverCertFilePath)
 	if err != nil {
 		// Ignore server certificate error  (See: MEN-2378)
 		log.Warnf(errMissingServerCertF, err.Error())
-	}
-
-	if systemPool == nil {
-		log.Warn("No system certificates found.")
-		systemPool = x509.NewCertPool()
 	}
 
 	if len(serverCertificate) > 0 {

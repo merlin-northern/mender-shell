@@ -189,30 +189,22 @@ func TestConnection_Close(t *testing.T) {
 func TestMenderShellConnectionLoadServerTrust(t *testing.T) {
 	testCases := map[string]struct {
 		certificate string
-		notNil      bool
 	}{
 		"ok-with-given-certificate": {
-			certificate: "server.crt",
-			notNil:      true,
+			certificate: "testdata/server.crt",
 		},
 		"ok-with-given-rubbish-certificate": {
-			certificate: "rubbish.txt",
-			notNil:      true,
+			certificate: "testdata/rubbish.txt",
 		},
 		"nil-without-certificate": {
 			certificate: "",
-			notNil:      false,
 		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			pool := loadServerTrust(tc.certificate)
-			if tc.notNil {
-				assert.True(t, tc.notNil && (pool != nil))
-			} else {
-				assert.True(t, !tc.notNil && (pool == nil))
-			}
+			assert.True(t, pool != nil)
 		})
 	}
 }

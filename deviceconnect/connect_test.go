@@ -129,7 +129,7 @@ func TestMenderShellDeviceConnectTLSCerts(t *testing.T) {
 		err         error
 	}{
 		"ok-with-given-certificate": {
-			certificate: "server.crt",
+			certificate: "testdata/server.crt",
 		},
 		"ok-without-verify": {
 			certificate: "",
@@ -140,7 +140,7 @@ func TestMenderShellDeviceConnectTLSCerts(t *testing.T) {
 			err:         errors.New("x509: certificate signed by unknown authority"),
 		},
 		"error-bad-handshake": {
-			certificate: "server.crt",
+			certificate: "testdata/server.crt",
 			noUpgrade:   true,
 			err:         errors.New("websocket: bad handshake"),
 		},
