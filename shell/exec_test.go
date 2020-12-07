@@ -78,12 +78,20 @@ func echoMainServerLoop(w http.ResponseWriter, r *http.Request) {
 	for {
 		m, err := readMessage(c)
 		if err == nil {
-			messages = append(messages, strings.TrimRight(string(m.Data), "\r\n"))
+			lines := strings.Split(string(m.Data), "\r\n")
+			for _, l := range lines {
+				messages = append(messages, l)
+			}
+			//messages = append(messages, strings.TrimRight(string(m.Data), "\r\n"))
 		}
 		time.Sleep(1 * time.Second)
 		m, err = readMessage(c)
 		if err == nil {
-			messages = append(messages, strings.TrimRight(string(m.Data), "\r\n"))
+			lines := strings.Split(string(m.Data), "\r\n")
+			for _, l := range lines {
+				messages = append(messages, l)
+			}
+			//messages = append(messages, strings.TrimRight(string(m.Data), "\r\n"))
 		}
 	}
 }
