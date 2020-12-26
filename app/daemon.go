@@ -15,6 +15,7 @@ package app
 
 import (
 	"errors"
+	"github.com/mendersoftware/mender-shell/filetransfer"
 	"os/user"
 	"strconv"
 	"sync"
@@ -23,6 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/mendersoftware/go-lib-micro/ws"
+	ft "github.com/mendersoftware/go-lib-micro/ws/filetransfer"
 	wsshell "github.com/mendersoftware/go-lib-micro/ws/shell"
 
 	"github.com/mendersoftware/mender-shell/client/dbus"
@@ -391,6 +393,13 @@ func (d *MenderShellDaemon) Run() error {
 	}
 	log.Debugf("mender-shell got len(JWT)=%d", len(jwtToken))
 
+	err = connectionmanager.Connect(ws.ProtoTypeFileTransfer,
+		d.serverUrl,
+		d.deviceConnectUrl,
+		jwtToken,
+		d.skipVerify,
+		d.serverCertificate,
+		0)
 	err = connectionmanager.Connect(ws.ProtoTypeShell,
 		d.serverUrl,
 		d.deviceConnectUrl,
@@ -453,6 +462,12 @@ func (d *MenderShellDaemon) responseMessage(m *shell.MenderShellMessage) (err er
 
 func (d *MenderShellDaemon) routeMessage(message *shell.MenderShellMessage) (err error) {
 	switch message.Type {
+	case ft.MessageTypeGetFile:
+		log.Debugf("filetransfer.SendFile starting")
+		go filetransfer.SendFile(string(message.Data),int64(1024),message.SessionId)
+	case ft.MessageTypeStatFile:
+		err=filetransfer.SendStat(string(message.Data),message.SessionId)
+		log.Debugf("filetransfer.SendStat(%s,%s)=%v",string(message.Data),message.SessionId,err)
 	case wsshell.MessageTypeSpawnShell:
 		if d.shellsSpawned >= configuration.MaxShellsSpawned {
 			return session.ErrSessionTooManyShellsAlreadyRunning

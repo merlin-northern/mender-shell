@@ -12,19 +12,20 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 
-package shell
+package filetransfer
 
-type MenderShellMessageStatus int
+type MenderFileTransferMessageStatus int
 
 const (
-	MessageTypeShellCommand = "shell"
-	MessageTypeSpawnShell   = "new"
-	MessageTypeStopShell    = "stop"
-	MessageTypeResizeShell  = "resize"
+	MessageTypeGetFile = "get_file"
+	MessageTypePutFile = "put_file"
+	MessageTypeStatFile   = "stat_file"
+	MessageTypeFileChunk    = "file_chunk"
 )
 
 const (
-	NormalMessage MenderShellMessageStatus = iota + 1
+	NormalMessage MenderFileTransferMessageStatus = iota + 1
 	ErrorMessage
-	ControlMessage
+	FileNotFound
+	PermissionDenied
 )
